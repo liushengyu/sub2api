@@ -853,12 +853,19 @@ const hasAntigravityQuotaFromAPI = computed(() => {
   return usageInfo.value?.antigravity_quota && Object.keys(usageInfo.value.antigravity_quota).length > 0
 })
 
-// 从 API 配额数据中获取使用率（多模型取最高使用率）
+// 从 API 配额数据中获取使用率（同族多模型取最高使用率）
+//
+// 参数既可以是精确的模型名，也可以是匹配函数。上游把模型名写死（只认
+// gemini-3-pro-*），导致 3.1/3.6/3.8 等新一代模型的额度在界面上完全不显示；
+// 改为按族匹配后，Google 新增模型不需要再改代码。
 const getAntigravityUsageFromAPI = (
-  modelNames: string[]
+  matcher: string[] | ((model: string) => boolean)
 ): AntigravityUsageResult | null => {
   const quota = usageInfo.value?.antigravity_quota
   if (!quota) return null
+
+  const modelNames =
+    typeof matcher === 'function' ? Object.keys(quota).filter(matcher) : matcher
 
   let maxUtilization = 0
   let earliestReset: string | null = null
@@ -889,28 +896,30 @@ const getAntigravityUsageFromAPI = (
   }
 }
 
-// Gemini 3 Pro from API
+// Gemini Pro from API: every non-image Pro generation, including the
+// Antigravity-internal "gemini-pro-agent" id.
+const isGeminiImageModel = (model: string) => model.includes('image')
 const antigravity3ProUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI(['gemini-3-pro-low', 'gemini-3-pro-high', 'gemini-3-pro-preview'])
+  getAntigravityUsageFromAPI(
+    (model) => model.startsWith('gemini-') && model.includes('pro') && !isGeminiImageModel(model)
+  )
 )
 
-// Gemini 3 Flash from API
-const antigravity3FlashUsageFromAPI = computed(() => getAntigravityUsageFromAPI(['gemini-3-flash']))
+// Gemini Flash from API: every non-image Flash generation (3.x, 2.5, lite, tiered...).
+const antigravity3FlashUsageFromAPI = computed(() =>
+  getAntigravityUsageFromAPI(
+    (model) => model.startsWith('gemini-') && model.includes('flash') && !isGeminiImageModel(model)
+  )
+)
 
 // Gemini Image from API
 const antigravity3ImageUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI(['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-3-pro-image'])
+  getAntigravityUsageFromAPI((model) => model.startsWith('gemini-') && isGeminiImageModel(model))
 )
 
 // Claude from API (all Claude model variants)
 const antigravityClaudeUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI([
-    'claude-fable-5-1',
-    'claude-fable-5',
-    'claude-sonnet-4-5', 'claude-opus-4-5-thinking',
-    'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-6-thinking',
-    'claude-opus-4-7', 'claude-opus-4-8',
-  ])
+  getAntigravityUsageFromAPI((model) => model.startsWith('claude'))
 )
 
 const aiCreditsDisplay = computed(() => {

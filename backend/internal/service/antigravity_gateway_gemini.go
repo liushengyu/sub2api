@@ -129,6 +129,9 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 	}
 
 	// 清理 Schema
+	// Obfuscate configured third-party tool names in the system instruction
+	// (ANTIGRAVITY_SENSITIVE_WORDS); a no-op when nothing is configured.
+	injectedBody = antigravity.ObfuscateSensitiveWordsInSystemInstruction(injectedBody)
 	if cleanedBody, err := cleanGeminiRequest(injectedBody); err == nil {
 		injectedBody = cleanedBody
 		logger.LegacyPrintf("service.antigravity_gateway", "[Antigravity] Cleaned request schema in forwarded request for account %s", account.Name)

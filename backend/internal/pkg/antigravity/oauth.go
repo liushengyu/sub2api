@@ -117,15 +117,29 @@ func GetUserAgentVersionForContext(ctx context.Context) string {
 			return version
 		}
 	}
-	return defaultUserAgentVersion
+	StartHubVersionUpdater()
+	return resolvedHubVersion()
 }
 
-// BuildUserAgent 使用指定版本号构造 User-Agent；版本为空或非法时回退默认值。
+// BuildUserAgent 使用指定版本号构造 User-Agent；版本为空或非法时按
+// 「自动获取的版本 -> 编译期默认值」回退。
+//
+// 格式与官方客户端一致：带 hub/ 家族段 + 平台标识。缺少 hub/ 时，上游会对部分
+// 模型返回 404（见上游 issue #6419）；低于 2.9.0 的版本会被拒绝新模型。
 func BuildUserAgent(version string) string {
-	if normalized := NormalizeUserAgentVersion(version); normalized != "" {
-		return fmt.Sprintf("antigravity/%s windows/amd64", normalized)
+	normalized := NormalizeUserAgentVersion(version)
+	if normalized == "" {
+		normalized = resolvedHubVersion()
 	}
-	return fmt.Sprintf("antigravity/%s windows/amd64", defaultUserAgentVersion)
+	return fmt.Sprintf("antigravity/hub/%s %s", normalized, HubPlatform)
+}
+
+// resolvedHubVersion 返回自动获取到的版本号，没有则用编译期默认值。
+func resolvedHubVersion() string {
+	if fetched := NormalizeUserAgentVersion(FetchedHubVersion()); fetched != "" {
+		return fetched
+	}
+	return defaultUserAgentVersion
 }
 
 // GetUserAgentForContext 返回当前请求应使用的 User-Agent。
